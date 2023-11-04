@@ -1,0 +1,18 @@
+###
+GET http://localhost:8080/api/surveys
+###
+GET http://localhost:8080/api/surveys/survey_0E158A9NPMKG4
+###
+GET http://localhost:8080/api/surveys/survey_0E158A9NPMKG4/response
+###
+GET http://localhost:8080/api/answers
+###
+POST http://localhost:8080/api/surveys
+Content-Type: application/json
+
+{
+  "title": "1st developer survey",
+  "description": "1Survey survey"
+}
+
+###

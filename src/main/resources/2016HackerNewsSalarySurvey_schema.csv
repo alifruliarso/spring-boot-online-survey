@@ -1,0 +1,19 @@
+Column,QuestionText
+salary_id,ID
+employer_name, What is your employer name?
+location_name, Where is your location?
+location_state, In which state do you currently reside?
+location_country, In which country do you currently reside?
+location_latitude, Your location latitude?
+location_longitude, Your location longitude?
+job_title, Your job title?
+job_title_category,Your job category?
+job_title_rank,Your job title rank?
+total_experience_years, How many years experience do you have in your field?
+employer_experience_years, How many years experience do you have with your current employer?
+annual_base_pay, What is your annual base pay?
+signing_bonus, What is your signing bonus?
+annual_bonus, what is your annual bonus?
+stock_value_bonus,what is your stock value bonus?
+comments, Any comment about your current job?
+submitted_at, Submitted at

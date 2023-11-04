@@ -1,0 +1,42 @@
+version: '3.3'
+services:
+  survey-app-dev:
+    container_name: survey-app-dev
+    build:
+      context: ./
+      dockerfile: dev.Dockerfile
+    volumes:
+      - ./src:/app/src
+      - ./.m2:/root/.m2
+    environment:
+      - GRIDDB_NOTIFICATION_MEMBER=griddb-dev:10001
+      - GRIDDB_CLUSTER_NAME=dockerGridDB
+      - GRIDDB_USER=admin
+      - GRIDDB_PASSWORD=admin
+      - spring.thymeleaf.prefix=file:src/main/resources/templates/
+#    working_dir: /app
+    command: sh ./docker-entrypoint-dev.sh
+    ports:
+      - 8080:8080
+      - 35729:35729
+      - 5005:5005
+    networks:
+      - griddb-dev-net
+    depends_on:
+      - griddb-dev
+  griddb-dev:
+    container_name: griddb-dev
+    build:
+      context: ./dockergriddb
+      dockerfile: Dockerfile
+    volumes:
+      - griddb-dev-vol:/var/lib/gridstore
+    ports:
+      - 10001:10001
+    networks:
+      - griddb-dev-net
+
+networks:
+  griddb-dev-net:
+volumes:
+  griddb-dev-vol:
