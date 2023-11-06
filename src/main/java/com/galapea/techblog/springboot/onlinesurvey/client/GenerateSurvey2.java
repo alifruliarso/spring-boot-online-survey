@@ -1,11 +1,9 @@
 package com.galapea.techblog.springboot.onlinesurvey.client;
 
 import java.io.IOException;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-@Slf4j
 @Component
 public class GenerateSurvey2 implements CommandLineRunner {
   private final GenerateSurveyService generateSurveyService;
