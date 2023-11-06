@@ -1,0 +1,41 @@
+version: '3.3'
+services:
+  survey-appjlink:
+    container_name: survey-app-jlink
+    build:
+      context: ./
+      dockerfile: jlink.Dockerfile
+    environment:
+      - GRIDDB_NOTIFICATION_MEMBER=griddbjlink:10001
+      - GRIDDB_CLUSTER_NAME=appCluster
+      - GRIDDB_USER=admin
+      - GRIDDB_PASSWORD=admin
+      - spring.devtools.add-properties=false
+    volumes:
+      - ./.m2:/root/.m2
+    ports:
+      - 8080:8080
+    depends_on:
+      griddbjlink:
+        condition: service_healthy
+
+  griddbjlink:
+    container_name: griddb-jlink
+    build:
+      context: ./dockergriddb
+      dockerfile: Dockerfile
+    environment:
+      - GRIDDB_CLUSTER_NAME=appCluster
+    ports:
+      - 10001:10001
+    volumes:
+      - "volgriddb-surveyappjlink:/var/lib/gridstore"
+      - "./dockergriddb/healthcheck.sh:/tmp/healthcheck.sh"
+    healthcheck:
+      test: 'bash /tmp/healthcheck.sh'
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  volgriddb-surveyappjlink:

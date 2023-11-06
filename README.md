@@ -52,3 +52,19 @@ The website available at http://localhost:8080
   gs> setcluster clusterD dockerGridDB 239.0.0.1 31999 $node0
   gs> connect $clusterD
   ```
+
+### Build smaller docker image using jlink
+
+  ```shell
+  docker-compose -f docker-compose-jlink.yml build survey-appjlink
+  ```
+
+- Check docker image
+  
+  ```shell
+  docker run --entrypoint "ls"  8cd6d9a09cee -al /app
+  docker run --entrypoint "du"  8cd6d9a09cee -sh /app
+  docker run --entrypoint "ls"  8cd6d9a09cee -al /user/java/jdk21
+  docker run --entrypoint "du"  8cd6d9a09cee -sh /user/java/jdk21
+  docker run --entrypoint "java"  8cd6d9a09cee -version
+  ```
