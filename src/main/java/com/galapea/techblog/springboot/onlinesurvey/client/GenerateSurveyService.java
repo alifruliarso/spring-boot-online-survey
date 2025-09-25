@@ -5,16 +5,15 @@ import com.galapea.techblog.springboot.onlinesurvey.entity.Survey;
 import com.galapea.techblog.springboot.onlinesurvey.entity.SurveyResponse;
 import com.galapea.techblog.springboot.onlinesurvey.model.QuestionCreateRequest;
 import com.galapea.techblog.springboot.onlinesurvey.model.QuestionDto;
+import com.galapea.techblog.springboot.onlinesurvey.model.ResponseDto;
 import com.galapea.techblog.springboot.onlinesurvey.model.SurveyCreateRequest;
+import com.galapea.techblog.springboot.onlinesurvey.service.AnswerCollectionComponent;
 import com.galapea.techblog.springboot.onlinesurvey.service.KeyGenerator;
 import com.galapea.techblog.springboot.onlinesurvey.service.QuestionService;
+import com.galapea.techblog.springboot.onlinesurvey.service.SurveyResponseService;
 import com.galapea.techblog.springboot.onlinesurvey.service.SurveyService;
-import com.toshiba.mwcloud.gs.Collection;
-import com.toshiba.mwcloud.gs.GSException;
-import com.toshiba.mwcloud.gs.Query;
-import com.toshiba.mwcloud.gs.RowSet;
 import de.siegmar.fastcsv.reader.CsvReader;
-import de.siegmar.fastcsv.reader.CsvRow;
+import de.siegmar.fastcsv.reader.CsvRecord;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -23,61 +22,58 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
 public class GenerateSurveyService {
   private final SurveyService surveyService;
   private final QuestionService questionService;
-  private final Collection<String, Survey> surveyCollection;
-  private final Collection<String, SurveyResponse> surveyResponseCollection;
-  private final Collection<String, Answer> answerCollection;
+  private final SurveyResponseService surveyResponseService;
+  private final AnswerCollectionComponent answerCollectionComponent;
 
   public GenerateSurveyService(
       SurveyService surveyService,
       QuestionService questionService,
-      Collection<String, Survey> surveyCollection,
-      Collection<String, SurveyResponse> surveyResponseCollection,
-      Collection<String, Answer> answerCollection) {
+      SurveyResponseService surveyResponseService,
+      AnswerCollectionComponent answerCollectionComponent) {
     this.surveyService = surveyService;
     this.questionService = questionService;
-    this.surveyCollection = surveyCollection;
-    this.surveyResponseCollection = surveyResponseCollection;
-    this.answerCollection = answerCollection;
+    this.surveyResponseService = surveyResponseService;
+    this.answerCollectionComponent = answerCollectionComponent;
   }
 
-  private Survey findSurveyByTitle(String title) throws GSException {
-    String tql = String.format("select * from surveys where title='%s'", title);
-    Query<Survey> query = surveyCollection.query(tql);
-    RowSet<Survey> rs = query.fetch();
-    if (rs.hasNext()) {
-      return rs.next();
-    }
-    return null;
+  private Survey findSurveyByTitle(String title) {
+    return surveyService.getSurveys().stream()
+        .filter(s -> s.getTitle().equals(title))
+        .findFirst()
+        .map(
+            surveyDto -> {
+              Survey survey = new Survey();
+              survey.setId(surveyDto.getId());
+              survey.setTitle(surveyDto.getTitle());
+              survey.setDescription(surveyDto.getDescription());
+              survey.setCreatedAt(surveyDto.getCreatedAt());
+              survey.setActive(surveyDto.isActive());
+              return survey;
+            })
+        .orElse(null);
   }
 
   public String generateSurveyFromFile(String title, String description, String surveySchemaFile)
       throws IOException {
     Survey survey = findSurveyByTitle(title);
     if (survey != null) {
-      log.info("Example survey already exists. Title: {}", title);
       return survey.getId();
     }
 
-    log.info("Let me create survey: {}", title);
     SurveyCreateRequest request = new SurveyCreateRequest();
     request.setActive(true);
     request.setTitle(title);
 
     request.setDescription(description);
     String surveyId = surveyService.create(request);
-    log.info("Created surveyId: {}", surveyId);
 
     Resource resource = new ClassPathResource(surveySchemaFile);
     FileReader fr = new FileReader(resource.getFile());
@@ -95,72 +91,54 @@ public class GenerateSurveyService {
       questionService.create(question);
       lineNumber++;
     }
-    log.info("Inserted {} questions", lineNumber);
     br.close();
     return surveyId;
   }
 
-  private SurveyResponse findSurveyResponse(String surveyId) throws GSException {
-    String tql = String.format("select * from surveyResponses where surveyId='%s'", surveyId);
-    Query<SurveyResponse> query = surveyResponseCollection.query(tql);
-    RowSet<SurveyResponse> rs = query.fetch();
-    if (rs.hasNext()) {
-      return rs.next();
+  private SurveyResponse findSurveyResponse(String surveyId) {
+    List<ResponseDto> responses = surveyResponseService.getResponses(surveyId);
+    if (responses != null && !responses.isEmpty()) {
+      return new SurveyResponse();
     }
     return null;
   }
 
   public void generateAnswers(String surveyId, String surveyResponseFile) throws IOException {
     if (findSurveyResponse(surveyId) != null) {
-      log.info("Not generating answers from example.");
       return;
     }
     List<QuestionDto> questions = questionService.getQuestions(surveyId);
 
     Resource resource = new ClassPathResource(surveyResponseFile);
     Path path = Path.of(resource.getURI());
-    CsvReader csvReader = CsvReader.builder().fieldSeparator(',').quoteCharacter('"').build(path);
-    long csvRowCount =
-        CsvReader.builder().fieldSeparator(',').quoteCharacter('"').build(path).stream().count();
-    log.info("Generating {} answers", csvRowCount);
-    for (final Iterator<CsvRow> iterator = csvReader.iterator(); iterator.hasNext(); ) {
-      final CsvRow csvRow = iterator.next();
-      List<String> rowFields = csvRow.getFields();
-      SurveyResponse newResponse = new SurveyResponse();
-      newResponse.setId(KeyGenerator.next("response"));
-      newResponse.setSurveyId(surveyId);
-      newResponse.setStartedAt(new Date());
-      var respondentId = KeyGenerator.next("respondent");
-      newResponse.setRespondentId(respondentId);
-      surveyResponseCollection.setAutoCommit(false);
-      surveyResponseCollection.put(newResponse);
-      List<Answer> answerList = new ArrayList<>(questions.size());
-      for (int i = 0; i < questions.size(); i++) {
-        Answer answer = new Answer();
-        answer.setId(KeyGenerator.next("answer"));
-        answer.setSurveyResponseId(newResponse.getId());
-        answer.setCreatedAt(new Date());
-        answer.setQuestionId(questions.get(i).getId());
-        answer.setAnswer(rowFields.get(i + 1));
-        answerList.add(answer);
+    try (CsvReader<CsvRecord> csvReader =
+        CsvReader.builder().fieldSeparator(',').quoteCharacter('"').ofCsvRecord(path)) {
+      for (final Iterator<CsvRecord> iterator = csvReader.iterator(); iterator.hasNext(); ) {
+        final CsvRecord csvRow = iterator.next();
+        List<String> rowFields = csvRow.getFields();
+        SurveyResponse newResponse = new SurveyResponse();
+        newResponse.setId(KeyGenerator.next("response"));
+        newResponse.setSurveyId(surveyId);
+        newResponse.setStartedAt(new Date());
+        var respondentId = KeyGenerator.next("respondent");
+        newResponse.setRespondentId(respondentId);
+        surveyResponseService.addSurveyResponse(newResponse);
+        List<Answer> answerList = new ArrayList<>(questions.size());
+        for (int i = 0; i < questions.size(); i++) {
+          Answer answer = new Answer();
+          answer.setId(KeyGenerator.next("answer"));
+          answer.setSurveyResponseId(newResponse.getId());
+          answer.setCreatedAt(new Date());
+          answer.setQuestionId(questions.get(i).getId());
+          answer.setAnswer(rowFields.get(i + 1));
+          answerList.add(answer);
+        }
+        for (Answer answer : answerList) {
+          answerCollectionComponent.addAnswer(answer.getId(), answer);
+        }
+        newResponse.setCompletedAt(new Date());
+        surveyResponseService.updateSurveyResponse(newResponse);
       }
-      answerCollection.put(answerList);
-      //      randomDelay();
-      SurveyResponse updateResponse = surveyResponseCollection.get(newResponse.getId(), true);
-      updateResponse.setCompletedAt(new Date());
-      surveyResponseCollection.put(updateResponse.getId(), updateResponse);
-      surveyResponseCollection.commit();
-    }
-    log.info("Finished insert answers");
-  }
-
-  void randomDelay() {
-    int min = 1000;
-    int max = 4000;
-    try {
-      TimeUnit.MILLISECONDS.sleep(ThreadLocalRandom.current().nextInt(min, max));
-    } catch (InterruptedException e) {
-      e.printStackTrace();
     }
   }
 }

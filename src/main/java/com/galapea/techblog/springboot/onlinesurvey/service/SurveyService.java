@@ -6,10 +6,10 @@ import com.galapea.techblog.springboot.onlinesurvey.entity.Survey;
 import com.galapea.techblog.springboot.onlinesurvey.model.QuestionDto;
 import com.galapea.techblog.springboot.onlinesurvey.model.SurveyCreateRequest;
 import com.galapea.techblog.springboot.onlinesurvey.model.SurveyDto;
-import com.toshiba.mwcloud.gs.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,17 +17,12 @@ import org.springframework.web.server.ResponseStatusException;
 @Slf4j
 @Service
 public class SurveyService {
-  private Collection<String, Survey> surveyCollection;
+  private Map<String, Survey> surveyCollection;
   private QuestionService questionService;
-  private GridStore gridStore;
 
-  public SurveyService(
-      Collection<String, Survey> surveyCollection,
-      QuestionService questionService,
-      GridStore gridStore) {
+  public SurveyService(Map<String, Survey> surveyCollection, QuestionService questionService) {
     this.surveyCollection = surveyCollection;
     this.questionService = questionService;
-    this.gridStore = gridStore;
   }
 
   public String create(SurveyCreateRequest request) {
@@ -37,60 +32,43 @@ public class SurveyService {
     survey.setTitle(request.getTitle());
     survey.setDescription(request.getDescription());
     survey.setCreatedAt(new Date());
-    try {
-      log.info("put: {}", survey);
-      surveyCollection.put(survey.getId(), survey);
-    } catch (GSException e) {
-      e.printStackTrace();
-    }
+    log.info("put: {}", survey);
+    surveyCollection.put(survey.getId(), survey);
     return survey.getId();
   }
 
   public boolean deleteSurvey(String surveyId) {
-    try {
-      return surveyCollection.remove(surveyId);
-    } catch (GSException e) {
-      e.printStackTrace();
-      return false;
-    }
+    return surveyCollection.remove(surveyId) != null;
   }
 
   public SurveyDto getSurvey(String surveyId) {
-    String tql = String.format("select * from surveys where id='%s'", surveyId);
-    List<SurveyDto> surveyDtos = query(tql, true);
-    if (surveyDtos == null || surveyDtos.size() == 0) {
+    Survey survey = surveyCollection.get(surveyId);
+    if (survey == null) {
       throw new ResponseStatusException(NOT_FOUND, "Not found");
     }
-    return surveyDtos.get(0);
+    List<QuestionDto> questions = questionService.getQuestions(survey.getId());
+    return SurveyDto.builder()
+        .id(survey.getId())
+        .createdAt(survey.getCreatedAt())
+        .description(survey.getDescription())
+        .title(survey.getTitle())
+        .isActive(survey.isActive())
+        .questions(questions)
+        .build();
   }
 
   public List<SurveyDto> getSurveys() {
-    String tql = "select * from surveys limit 50";
-    return query(tql, false);
-  }
-
-  private List<SurveyDto> query(String tql, boolean includeQuestion) {
     List<SurveyDto> result = new ArrayList<>();
-    Query<Survey> query;
-    try {
-      query = surveyCollection.query(tql);
-      RowSet<Survey> rs = query.fetch();
-      while (rs.hasNext()) {
-        Survey model = rs.next();
-        List<QuestionDto> questions = new ArrayList<>();
-        if (includeQuestion) questions = questionService.getQuestions(model.getId());
-        result.add(
-            SurveyDto.builder()
-                .id(model.getId())
-                .createdAt(model.getCreatedAt())
-                .description(model.getDescription())
-                .title(model.getTitle())
-                .isActive(model.isActive())
-                .questions(questions)
-                .build());
-      }
-    } catch (GSException e) {
-      e.printStackTrace();
+    for (Survey survey : surveyCollection.values()) {
+      result.add(
+          SurveyDto.builder()
+              .id(survey.getId())
+              .createdAt(survey.getCreatedAt())
+              .description(survey.getDescription())
+              .title(survey.getTitle())
+              .isActive(survey.isActive())
+              .questions(new ArrayList<>())
+              .build());
     }
     return result;
   }

@@ -13,13 +13,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class ExceptionHandleInterceptor extends ResponseEntityExceptionHandler {
   @ExceptionHandler(IllegalArgumentException.class)
   public ProblemDetail handle(IllegalArgumentException e) {
-    log.info(e.getMessage(), e);
+    log.error(e.getMessage(), e);
     return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
   }
 
   @ExceptionHandler(NoSuchElementException.class)
   public ProblemDetail handle(NoSuchElementException e) {
-    log.info(e.getMessage(), e);
+    log.error(e.getMessage(), e);
     return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
   }
 

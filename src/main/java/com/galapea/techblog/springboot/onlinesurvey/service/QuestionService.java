@@ -3,21 +3,19 @@ package com.galapea.techblog.springboot.onlinesurvey.service;
 import com.galapea.techblog.springboot.onlinesurvey.entity.Question;
 import com.galapea.techblog.springboot.onlinesurvey.model.QuestionCreateRequest;
 import com.galapea.techblog.springboot.onlinesurvey.model.QuestionDto;
-import com.toshiba.mwcloud.gs.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
 public class QuestionService {
-  private Collection<String, Question> questionCollection;
-  private GridStore gridStore;
+  private Map<String, Question> questionCollection;
 
-  public QuestionService(Collection<String, Question> questionCollection, GridStore gridStore) {
+  public QuestionService(Map<String, Question> questionCollection) {
     this.questionCollection = questionCollection;
-    this.gridStore = gridStore;
   }
 
   public String create(QuestionCreateRequest request) {
@@ -27,24 +25,14 @@ public class QuestionService {
     question.setQuestionText(request.getQuestionText());
     question.setPosition(request.getPosition());
     question.setSurveyId(request.getSurveyId());
-    try {
-      questionCollection.put(question);
-    } catch (GSException e) {
-      e.printStackTrace();
-    }
+    questionCollection.put(question.getId(), question);
     return question.getId();
   }
 
   public List<QuestionDto> getQuestions(String surveyId) {
     List<QuestionDto> result = new ArrayList<>();
-    Query<Question> query;
-    try {
-      String tql =
-          String.format("select * from questions where surveyId='%s' order by position", surveyId);
-      query = questionCollection.query(tql);
-      RowSet<Question> rs = query.fetch();
-      while (rs.hasNext()) {
-        Question model = rs.next();
+    for (Question model : questionCollection.values()) {
+      if (model.getSurveyId().equals(surveyId)) {
         result.add(
             QuestionDto.builder()
                 .id(model.getId())
@@ -53,24 +41,20 @@ public class QuestionService {
                 .surveyId(model.getSurveyId())
                 .build());
       }
-    } catch (GSException e) {
-      e.printStackTrace();
     }
+    // Optionally sort by position
+    result.sort((a, b) -> Integer.compare(a.getPosition(), b.getPosition()));
     return result;
   }
 
   public QuestionDto getQuestion(String id) {
-    try {
-      Question model = questionCollection.get(id);
-      return QuestionDto.builder()
-          .id(model.getId())
-          .questionText(model.getQuestionText())
-          .position(model.getPosition())
-          .surveyId(model.getSurveyId())
-          .build();
-    } catch (GSException e) {
-      e.printStackTrace();
-    }
-    return null;
+    Question model = questionCollection.get(id);
+    if (model == null) return null;
+    return QuestionDto.builder()
+        .id(model.getId())
+        .questionText(model.getQuestionText())
+        .position(model.getPosition())
+        .surveyId(model.getSurveyId())
+        .build();
   }
 }
